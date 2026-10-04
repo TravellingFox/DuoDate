@@ -1,0 +1,695 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum CostBasis {
+  PER_PERSON
+  TOTAL_FOR_TWO
+}
+
+enum DevicePlatform {
+  ANDROID
+}
+
+enum NotificationType {
+  MEMORY_CONTRIBUTION_INVITE
+  MEMORY_CAPTURE_REMINDER
+}
+
+enum NotificationIntentStatus {
+  PENDING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  RECEIPT_PENDING
+  SENT
+  CANCELLED
+  FAILED
+}
+
+enum AvailabilityMode {
+  ANYTIME
+  DATE_RANGE
+  SPECIFIC_OCCURRENCES
+}
+
+enum IdeaLifecycle {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+}
+
+enum RecurrenceKind {
+  NONE
+  WEEKLY
+  MONTHLY_ORDINAL_WEEKDAY
+}
+
+enum RecurrenceWeekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum WeatherState {
+  NEUTRAL
+  GOOD
+  IMPOSSIBLE
+}
+
+enum CostBand {
+  FREE
+  UNDER_20
+  FROM_20_TO_50
+  FROM_50_TO_100
+  FROM_100
+}
+
+enum DurationBand {
+  UNDER_ONE_HOUR
+  ONE_TO_TWO_HOURS
+  TWO_TO_FOUR_HOURS
+  HALF_DAY
+  FULL_DAY
+  OVERNIGHT_OR_MULTI_DAY
+}
+
+enum ScheduleStatus {
+  SCHEDULED
+  COMPLETED
+  MISSED
+  CANCELLED
+}
+
+enum MemoryStatus {
+  CAPTURE_REQUIRED
+  CONTENT_VALID
+}
+
+enum ContributionKind {
+  TEXT
+  PHOTO
+  VIDEO
+  VOICE_NOTE
+}
+
+enum MediaKind {
+  PHOTO
+  VIDEO
+  VOICE_NOTE
+}
+
+enum MediaState {
+  PENDING
+  ACTIVE
+  DELETION_PENDING
+}
+
+model Household {
+  id                   String              @id
+  defaultTimeZone      String              @default("Europe/Berlin")
+  suggestionSeed       String
+  maintenanceCheckedAt DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  settings             HouseholdSettings?
+  members              HouseholdMember[]
+  spaces               Space[]
+  categories           Category[]
+  ideas                 Idea[]
+  schedules             Schedule[]
+  destinations          Destination[]
+  trips                 Trip[]
+  memories              Memory[]
+  devices               Device[]
+  notificationIntents   NotificationIntent[]
+  suggestionSets        SuggestionSet[]
+}
+
+model HouseholdSettings {
+  id          String    @id @default(cuid())
+  householdId String    @unique
+  costBasis   CostBasis @default(PER_PERSON)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+}
+
+model UserProfile {
+  id                   String               @id
+  displayName          String
+  loginHandle          String               @unique
+  disabledAt           DateTime?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  credential           AuthCredential?
+  sessions             AuthSession[]
+  memberships          HouseholdMember[]
+  devices              Device[]
+  createdIdeas         Idea[]               @relation("IdeaCreator")
+  createdSchedules     Schedule[]           @relation("ScheduleCreator")
+  createdMemories      Memory[]             @relation("MemoryCreator")
+  updatedMemories      Memory[]             @relation("MemoryUpdater")
+  memoryContributions  MemoryContribution[]
+  memoryMediaUploads    MemoryMedia[]
+  ideaImageUploads      IdeaImage[]
+  tripHeroImageUploads  TripHeroImage[]
+  notificationIntents   NotificationIntent[] @relation("NotificationRecipient")
+  notificationActions   NotificationIntent[] @relation("NotificationActor")
+}
+
+model AuthCredential {
+  userId             String      @id
+  passwordHash       String
+  credentialVersion Int         @default(1)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  user               UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuthSession {
+  id                String      @id @default(cuid())
+  userId            String
+  tokenHash         String      @unique
+  credentialVersion Int
+  expiresAt         DateTime
+  lastUsedAt        DateTime    @default(now())
+  revokedAt         DateTime?
+  deviceLabel       String?
+  isDevelopmentBypass Boolean   @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  user              UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  devices           Device[]
+
+  @@index([userId, expiresAt])
+}
+
+model AuthThrottle {
+  key          String    @id
+  failureCount Int       @default(0)
+  blockedUntil DateTime?
+  lastFailedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model HouseholdMember {
+  id          String      @id @default(cuid())
+  householdId String
+  userId      String      @unique
+  joinedAt    DateTime    @default(now())
+  household   Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user        UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([householdId, userId])
+  @@index([householdId])
+}
+
+model Device {
+  id                     String         @id @default(cuid())
+  householdId            String
+  userId                 String
+  authSessionId          String?
+  installationId         String
+  pushToken              String?        @unique
+  platform               DevicePlatform @default(ANDROID)
+  label                  String?
+  lastSeenAt             DateTime       @default(now())
+  disabledAt             DateTime?
+  revokedAt              DateTime?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  household              Household      @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  user                   UserProfile    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  authSession            AuthSession?   @relation(fields: [authSessionId], references: [id], onDelete: SetNull)
+  notificationDeliveries NotificationDelivery[]
+
+  @@unique([userId, installationId])
+  @@index([installationId])
+  @@index([householdId, userId])
+  @@index([authSessionId])
+}
+
+model Space {
+  id          String    @id @default(cuid())
+  householdId String
+  name        String
+  colorToken  String?
+  iconKey     String?
+  sortOrder   Int       @default(0)
+  timeZone    String?
+  retiredAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  ideas       IdeaSpace[]
+
+  @@unique([householdId, name])
+  @@index([householdId, retiredAt, sortOrder])
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  householdId String
+  name        String
+  sortOrder   Int       @default(0)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  ideas       Idea[]
+
+  @@unique([householdId, name])
+  @@index([householdId, deletedAt, sortOrder])
+}
+
+model Idea {
+  id                    String          @id @default(cuid())
+  householdId           String
+  createdById           String
+  categoryId            String?
+  title                 String
+  specificLocation      String?
+  notes                 String?
+  lifecycle             IdeaLifecycle   @default(ACTIVE)
+  costBand              CostBand?
+  exactCostCents        Int?
+  costBasisAtEntry      CostBasis?
+  costMinTotalCents     Int?
+  costMaxTotalCents     Int?
+  exactCostTotalCents   Int?
+  durationBand          DurationBand?
+  durationRank          Int?
+  recurrenceKind        RecurrenceKind    @default(NONE)
+  recurrenceStartDate   String?
+  recurrenceEndDate     String?
+  recurrenceWeekdayMask Int?
+  recurrenceOrdinal     Int?
+  recurrenceWeekday     RecurrenceWeekday?
+  clientRequestId       String?
+  deletedAt             DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  household             Household       @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  createdBy             UserProfile     @relation("IdeaCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  category              Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  spaces                IdeaSpace[]
+  destinations          IdeaDestination[]
+  links                 IdeaLink[]
+  weatherSuitability    WeatherSuitability?
+  availability          Availability?
+  occurrences           SpecificOccurrence[]
+  images                IdeaImage[]
+  schedules             Schedule[]
+  memories              Memory[]
+  suggestionItems       SuggestionItem[]
+
+  @@unique([householdId, clientRequestId])
+  @@index([householdId, deletedAt, lifecycle])
+  @@index([categoryId])
+}
+
+model IdeaSpace {
+  ideaId  String
+  spaceId String
+  idea    Idea  @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  space   Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  @@id([ideaId, spaceId])
+  @@index([spaceId])
+}
+
+model IdeaDestination {
+  ideaId       String
+  destinationId String
+  idea          Idea        @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@id([ideaId, destinationId])
+  @@index([destinationId])
+}
+
+model IdeaLink {
+  id        String   @id @default(cuid())
+  ideaId    String
+  url       String
+  label     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+
+  @@index([ideaId, sortOrder])
+}
+
+model WeatherSuitability {
+  ideaId   String       @id
+  sunny    WeatherState @default(NEUTRAL)
+  rainy    WeatherState @default(NEUTRAL)
+  indoor   WeatherState @default(NEUTRAL)
+  outdoor  WeatherState @default(NEUTRAL)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  idea     Idea         @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+}
+
+model Availability {
+  ideaId         String           @id
+  mode           AvailabilityMode @default(ANYTIME)
+  rangeStartDate String?
+  rangeEndDate   String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  idea           Idea             @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+}
+
+model SpecificOccurrence {
+  id          String    @id @default(cuid())
+  ideaId      String
+  localDate   String
+  startMinute Int?
+  endMinute   Int?
+  timeZone    String?
+  startsAt    DateTime?
+  endsAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  idea        Idea      @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  schedules   Schedule[]
+
+  @@index([ideaId, localDate])
+}
+
+model IdeaImage {
+  id                 String      @id
+  ideaId             String
+  uploaderId         String
+  state              MediaState  @default(PENDING)
+  activeSlot         String?     @unique
+  storageObjectKey   String      @unique
+  contentType        String
+  byteSize           Int
+  encryptionVersion  Int         @default(1)
+  keyVersion         Int         @default(1)
+  encryptedDataKey   String
+  keyWrapNonce       String
+  keyWrapAuthTag     String
+  nonce              String
+  authTag            String
+  width               Int?
+  height              Int?
+  cleanupAttempts    Int         @default(0)
+  lastStorageError   String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  idea               Idea        @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  uploader           UserProfile @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([ideaId, state, createdAt])
+  @@index([uploaderId])
+  @@index([state, createdAt])
+}
+
+model Schedule {
+  id            String         @id @default(cuid())
+  householdId   String
+  ideaId        String
+  occurrenceId  String?
+  createdById   String
+  scheduledDate String
+  startMinute   Int?
+  endMinute     Int?
+  timeZone      String
+  startsAt      DateTime?
+  endsAt        DateTime?
+  cleanupDueAt  DateTime?
+  status        ScheduleStatus @default(SCHEDULED)
+  activeSlot    String?        @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  household     Household      @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  idea          Idea           @relation(fields: [ideaId], references: [id], onDelete: Restrict)
+  occurrence    SpecificOccurrence? @relation(fields: [occurrenceId], references: [id], onDelete: SetNull)
+  createdBy     UserProfile    @relation("ScheduleCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  memory        Memory?
+
+  @@index([householdId, scheduledDate, status])
+  @@index([householdId, status, cleanupDueAt])
+  @@index([ideaId])
+}
+
+model Destination {
+  id          String    @id @default(cuid())
+  householdId String
+  name        String
+  timeZone    String
+  country     String?
+  notes       String?
+  colorToken  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  trips       Trip[]
+  ideas       IdeaDestination[]
+
+  @@unique([householdId, name])
+  @@index([householdId, name])
+}
+
+model Trip {
+  id            String      @id @default(cuid())
+  householdId   String
+  destinationId String
+  name          String?
+  startDate     String
+  endDate       String
+  cancelledAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  household     Household   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Restrict)
+  heroImages    TripHeroImage[]
+
+  @@index([householdId, startDate, endDate])
+  @@index([householdId, cancelledAt, startDate, endDate])
+  @@index([destinationId])
+}
+
+model TripHeroImage {
+  id                 String      @id
+  tripId             String
+  uploaderId         String
+  state              MediaState  @default(PENDING)
+  activeSlot         String?     @unique
+  storageObjectKey   String      @unique
+  contentType        String
+  byteSize           Int
+  encryptionVersion  Int         @default(1)
+  keyVersion         Int         @default(1)
+  encryptedDataKey   String
+  keyWrapNonce       String
+  keyWrapAuthTag     String
+  nonce              String
+  authTag            String
+  width               Int?
+  height              Int?
+  cleanupAttempts    Int         @default(0)
+  lastStorageError   String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+  trip               Trip        @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  uploader           UserProfile @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([tripId, state, createdAt])
+  @@index([uploaderId])
+  @@index([state, createdAt])
+}
+
+model Memory {
+  id               String       @id @default(cuid())
+  householdId      String
+  sourceIdeaId     String?
+  sourceScheduleId String?      @unique
+  createdById      String
+  updatedById      String
+  title            String
+  locationSnapshot String?
+  categorySnapshot String?
+  startDate        String
+  endDate          String?
+  generalText      String?
+  status           MemoryStatus @default(CAPTURE_REQUIRED)
+  captureDueAt     DateTime?
+  resolvedAt       DateTime?
+  coverMediaId     String?      @unique
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  household        Household    @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  sourceIdea       Idea?        @relation(fields: [sourceIdeaId], references: [id], onDelete: SetNull)
+  sourceSchedule   Schedule?    @relation(fields: [sourceScheduleId], references: [id], onDelete: SetNull)
+  createdBy        UserProfile  @relation("MemoryCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy        UserProfile  @relation("MemoryUpdater", fields: [updatedById], references: [id], onDelete: Restrict)
+  contributions    MemoryContribution[]
+  mediaItems       MemoryMedia[] @relation("MemoryItems")
+  coverMedia       MemoryMedia?  @relation("MemoryCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  notificationIntents NotificationIntent[]
+
+  @@index([householdId, startDate])
+  @@index([sourceIdeaId])
+  @@index([status, captureDueAt])
+}
+
+model MemoryContribution {
+  id         String           @id @default(cuid())
+  memoryId   String
+  authorId   String
+  kind       ContributionKind
+  text       String?
+  sortOrder  Int              @default(0)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  memory     Memory           @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  author     UserProfile      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([memoryId, sortOrder])
+  @@index([authorId])
+}
+
+model MemoryMedia {
+  id                 String      @id @default(cuid())
+  memoryId           String
+  uploaderId         String
+  kind               MediaKind
+  state              MediaState  @default(PENDING)
+  storageObjectKey   String       @unique
+  contentType        String
+  byteSize           Int
+  encryptionVersion  Int         @default(1)
+  keyVersion         Int         @default(1)
+  encryptedDataKey   String
+  keyWrapNonce       String
+  keyWrapAuthTag     String
+  nonce              String
+  authTag            String
+  caption            String?
+  width               Int?
+  height              Int?
+  durationMs          Int?
+  sortOrder           Int         @default(0)
+  cleanupAttempts     Int         @default(0)
+  lastStorageError    String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  memory              Memory      @relation("MemoryItems", fields: [memoryId], references: [id], onDelete: Cascade)
+  uploader            UserProfile @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  coveredMemory       Memory?     @relation("MemoryCover")
+
+  @@index([memoryId, state, sortOrder])
+  @@index([uploaderId])
+  @@index([state, createdAt])
+}
+
+model NotificationIntent {
+  id              String                   @id @default(cuid())
+  householdId     String
+  recipientUserId String
+  actorUserId     String?
+  memoryId        String
+  type            NotificationType
+  dedupeKey       String                   @unique
+  earliestAt      DateTime
+  status          NotificationIntentStatus @default(PENDING)
+  attemptCount    Int                      @default(0)
+  nextAttemptAt   DateTime
+  claimedAt       DateTime?
+  sentAt          DateTime?
+  cancelledAt     DateTime?
+  failedAt        DateTime?
+  lastErrorCode   String?
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  household       Household                @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  recipient       UserProfile              @relation("NotificationRecipient", fields: [recipientUserId], references: [id], onDelete: Cascade)
+  actor           UserProfile?             @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  memory          Memory                   @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  deliveries      NotificationDelivery[]
+
+  @@index([status, nextAttemptAt])
+  @@index([householdId, recipientUserId, status])
+  @@index([memoryId, type])
+}
+
+model NotificationDelivery {
+  id                 String                     @id @default(cuid())
+  intentId           String
+  deviceId           String
+  status             NotificationDeliveryStatus @default(PENDING)
+  attemptCount       Int                        @default(0)
+  nextAttemptAt      DateTime
+  claimedAt          DateTime?
+  expoTicketId       String?                    @unique
+  receiptAttemptCount Int                       @default(0)
+  receiptNextAt      DateTime?
+  sentAt             DateTime?
+  cancelledAt        DateTime?
+  failedAt           DateTime?
+  lastErrorCode      String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  intent             NotificationIntent         @relation(fields: [intentId], references: [id], onDelete: Cascade)
+  device             Device                     @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@unique([intentId, deviceId])
+  @@index([status, nextAttemptAt])
+  @@index([status, receiptNextAt])
+  @@index([deviceId, status])
+}
+
+model SuggestionSet {
+  id                    String           @id @default(cuid())
+  householdId           String
+  targetDate            String
+  normalizedFiltersJson String
+  filterHash            String
+  algorithmVersion      Int
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  household             Household        @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  items                 SuggestionItem[]
+
+  @@unique([householdId, targetDate, filterHash, algorithmVersion])
+  @@index([householdId, createdAt])
+}
+
+model SuggestionItem {
+  id                 String        @id @default(cuid())
+  suggestionSetId    String
+  ideaId             String?
+  position           Int
+  weatherScore       Int
+  deterministicRank String
+  invalidatedAt      DateTime?
+  invalidationReason String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  suggestionSet      SuggestionSet @relation(fields: [suggestionSetId], references: [id], onDelete: Cascade)
+  idea               Idea?         @relation(fields: [ideaId], references: [id], onDelete: SetNull)
+
+  @@unique([suggestionSetId, position])
+  @@unique([suggestionSetId, ideaId])
+  @@index([ideaId])
+}

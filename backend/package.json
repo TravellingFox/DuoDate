@@ -1,0 +1,35 @@
+{
+  "name": "backend",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun --env-file=.env.local --env-file=.env run --hot src/index.ts",
+    "start": "bun run src/index.ts",
+    "studio": "cloud-studio --port 3001 --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "test": "DATABASE_URL='file:/tmp/duodate-foundation-test.db' prisma migrate deploy && DATABASE_URL='file:/tmp/duodate-foundation-test.db' bun test ./src/foundation.test.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "migrate:deploy": "prisma migrate deploy",
+    "notifications:sweep": "bun run src/scripts/notifications-sweep.ts",
+    "provision": "bun run src/scripts/provision.ts",
+    "dev:ensure-auth": "bun run src/scripts/ensure-development-auth.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "prisma": "6",
+    "typescript": "5.8.3"
+  },
+  "dependencies": {
+    "@hono/node-server": "1.12.0",
+    "@hono/zod-validator": "^0.9.1",
+    "@js-temporal/polyfill": "^0.5.1",
+    "@prisma/client": "6",
+    "@vibecodeapp/backend-sdk": "^1.0.1",
+    "@vibecodeapp/cloud-studio": "^0.2.4",
+    "@vibecodeapp/proxy": "^2.0.3",
+    "hono": "4.6.0",
+    "zod": "4.1.11"
+  }
+}
