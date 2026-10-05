@@ -24,15 +24,8 @@ import type { HouseholdMemberSummary } from "./types";
 const allowedOrigins = [
   /^http:\/\/localhost(?::\d+)?$/,
   /^http:\/\/127\.0\.0\.1(?::\d+)?$/,
-  /^https:\/\/[a-z0-9-]+\.dev\.vibecode\.run$/,
-  /^https:\/\/[a-z0-9-]+\.vibecode\.run$/,
-  /^https:\/\/[a-z0-9-]+\.vibecodeapp\.com$/,
-  /^https:\/\/[a-z0-9-]+\.vibecode\.dev$/,
-  /^https:\/\/vibecode\.dev$/,
   /^https:\/\/[a-z0-9-]+\.style\.dev$/,
-  /^https:\/\/\d+-[a-z0-9-]+\.daytonaproxy01\.(?:net|eu)$/,
   /^exp:\/\//,
-  /^vibecode:\/\//,
 ];
 
 export function createApp() {

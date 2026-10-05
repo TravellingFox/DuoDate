@@ -2,6 +2,12 @@ const { expo } = require('./app.json');
 
 module.exports = {
   ...expo,
+
+  android: {
+    ...(expo.android ?? {}),
+    package: 'com.duodate.app',
+  },
+
   plugins: [
     ...(expo.plugins ?? []),
     'expo-notifications',

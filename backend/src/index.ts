@@ -1,4 +1,3 @@
-import "@vibecodeapp/proxy";
 import { createApp } from "./app";
 import { ensureDevelopmentAuthProfiles } from "./development-auth";
 import { env } from "./env";

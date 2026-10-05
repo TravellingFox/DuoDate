@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "vibecode",
-    "slug": "vibecode",
-    "scheme": "vibecode",
+    "name": "DuoDate",
+    "slug": "duodate",
+    "scheme": "duodate",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
